@@ -1,5 +1,6 @@
 package org.excavator.boot.jfrevent;
 
+import jdk.jfr.consumer.RecordedEvent;
 import org.junit.jupiter.api.Test;
 import org.moditect.jfrunit.EnableEvent;
 import org.moditect.jfrunit.JfrEventTest;
@@ -32,6 +33,35 @@ public class GarbageCollectionTest {
 
         assertThat(jfrEvents).contains(event("jdk.ThreadSleep")
                 .with("time", Duration.ofMillis(42)));
+    }
+
+    @Test
+    @EnableEvent("jdk.ObjectAllocationInNewTLAB")
+    @EnableEvent("jdk.ObjectAllocationOutsideTLAB")
+    public void testAllocationEvent()throws Exception{
+        var threadName = Thread.currentThread().getName();
+
+        // Application Logic which creates objects
+        jfrEvents.awaitEvents();
+        var sum = jfrEvents.filter(this::isObjectAllocationEvent)
+                .filter(event -> event.getThread().getJavaName().equals(threadName))
+                .mapToLong(this::getAllocationSize)
+                .sum();
+        org.assertj.core.api.Assertions.assertThat(sum).isLessThan(43_000_000);
+        org.assertj.core.api.Assertions.assertThat(sum).isGreaterThan(1_000_000);
+    }
+
+    private boolean isObjectAllocationEvent(RecordedEvent re){
+        var name = re.getEventType().getName();
+        return name.equals("jdk.ObjectAllocationInNewTLAB") ||
+                name.equals("jdk.ObjectAllocationOutsideTLAB");
+    }
+
+    private long getAllocationSize(RecordedEvent recordedEvent){
+        return recordedEvent.getEventType().getName()
+                .equals("jdk.ObjectAllocationInNewTLAB") ?
+                recordedEvent.getLong("tlabSize") :
+                recordedEvent.getLong("allocationSize");
     }
 
 }
