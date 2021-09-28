@@ -49,6 +49,12 @@ public class GarbageCollectionTest {
                 .sum();
         org.assertj.core.api.Assertions.assertThat(sum).isLessThan(43_000_000);
         org.assertj.core.api.Assertions.assertThat(sum).isGreaterThan(1_000_000);
+
+        var ITERATIONS = 1_000_000;
+        for (int i = 0; i < ITERATIONS; i++) {
+            jfrEvents.awaitEvents();
+            jfrEvents.reset();
+        }
     }
 
     private boolean isObjectAllocationEvent(RecordedEvent re){
